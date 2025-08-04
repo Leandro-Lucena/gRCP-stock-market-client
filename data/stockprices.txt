@@ -1,0 +1,8 @@
+{"symbol":"AAPL","price":90}
+{"symbol":"BDEE","price":100}
+{"symbol":"GOOG","price":150}
+{"symbol":"MSFT","price":200}
+{"symbol":"AMZN","price":180}
+{"symbol":"TSLA","price":250}
+{"symbol":"NVDA","price":300}
+{"symbol":"META","price":170}
