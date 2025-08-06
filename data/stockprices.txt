@@ -1,4 +1,4 @@
-{"symbol":"AAPL","price":90}
+{"symbol":"AAPasdL","price":90}
 {"symbol":"BDEE","price":100}
 {"symbol":"GOOG","price":150}
 {"symbol":"MSFT","price":200}

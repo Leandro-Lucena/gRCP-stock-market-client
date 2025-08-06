@@ -2,6 +2,7 @@ var PROTO_PATH = __dirname + "/protos/stock_market.proto";
 
 var grpc = require("@grpc/grpc-js");
 var protoLoader = require("@grpc/proto-loader");
+const grpcStatus = require("grpc-error-status");
 var readline = require("readline");
 var fs = require("fs");
 var packageDefinition = protoLoader.loadSync(PROTO_PATH, {
@@ -11,22 +12,79 @@ var packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   defaults: true,
   oneofs: false,
 });
+var serviceConfig = fs.readFileSync("service_config.json", "utf8");
 var stock_market_proto =
   grpc.loadPackageDefinition(packageDefinition).stock_market;
+
+function authInterceptor(options, nextCall) {
+  var requester = new grpc.RequesterBuilder()
+    .withStart((metadata, listener, next) => {
+      metadata.set("authorization", "jwt-token");
+      return next(metadata, listener);
+    })
+    .build();
+  return new grpc.InterceptingCall(nextCall(options), requester);
+}
+
+function loggingInterceptor(options, nextCall) {
+  var requester = new grpc.RequesterBuilder()
+    .withStart((metadata, listener, next) => {
+      listener = {
+        onReceiveMessage: function (message, next) {
+          console.log(`Received message: ${JSON.stringify(message)}`);
+          next(message);
+        },
+        onReceiveMetadata: function (metadata, next) {
+          console.log(`Received metadata: ${JSON.stringify(metadata)}`);
+          next(metadata);
+        },
+        onReceiveStatus: function (status, next) {
+          console.log(`Received status: ${JSON.stringify(status)}`);
+          next(status);
+        },
+      };
+      console.log(`Client metadata: ${JSON.stringify(metadata)}`);
+      next(metadata, listener);
+    })
+    .withSendMessage((message, next) => {
+      console.log(`Sending message: ${JSON.stringify(message)}`);
+      next(message);
+    })
+    .build();
+  return new grpc.InterceptingCall(nextCall(options), requester);
+}
 
 var target = "localhost:5126";
 var client = new stock_market_proto.StockPrice(
   target,
-  grpc.credentials.createInsecure()
+  grpc.credentials.createInsecure(),
+  {
+    "grpc.service_config": serviceConfig,
+    interceptors: [authInterceptor, loggingInterceptor],
+  }
 );
 var deadline = new Date();
-deadline.setSeconds(deadline.getSeconds() + 8);
+deadline.setSeconds(deadline.getSeconds() + 20);
+
+var request = {
+  symbol: "PETR4",
+};
+
+function handleError(err) {
+  if (err.metadata.internalRepr.has("grpc-status-details-bin")) {
+    var errorDetails = grpcStatus.parse(err).toObject();
+    console.error("Error occurred:", JSON.stringify(errorDetails));
+  } else {
+    console.error("Error occurred:", err.message);
+  }
+}
 
 function unary() {
-  var request = {
-    symbol: "PETR4",
-  };
   client.getStockPrice(request, { deadline }, function (err, response) {
+    if (err) {
+      handleError(err);
+      return;
+    }
     console.log("[Unary] Action price: ", response);
   });
 }
@@ -37,7 +95,7 @@ function serverStreaming() {
     console.log("[Server Streaming] Action price: ", response);
   });
   call.on("error", function (err) {
-    console.error("[Server Streaming] Error: ", err);
+    handleError(err);
   });
   call.on("status", function (status) {
     console.log("[Server Streaming] Call ended with status: ", status);
@@ -52,7 +110,7 @@ function clientStreaming() {
     { deadline },
     function (err, response) {
       if (err) {
-        console.error("[Client Streaming] Error: ", err);
+        handleError(err);
         return;
       } else {
         console.log("[Client Streaming] Response: ", response);
@@ -81,7 +139,7 @@ function bidirectionalStreaming() {
     console.log("[Bidirectional Streaming] Action price: ", response);
   });
   call.on("error", function (err) {
-    console.error("[Bidirectional Streaming] Error: ", err);
+    handleError(err);
   });
   call.on("status", function (status) {
     console.log("[Bidirectional Streaming] Call ended with status: ", status);

@@ -1,0 +1,24 @@
+{
+  "loadBalacingConfig": [],
+  "methodConfig": [
+    {
+      "name": [
+        {
+          "service": "stock_market.StockPrice"
+        }
+      ],
+      "retryPolicy": {
+        "maxAttempts": 5,
+        "initialBackoff": "2s",
+        "maxBackoff": "5s",
+        "backoffMultiplier": 2,
+        "retryableStatusCodes": [
+          "UNAVAILABLE",
+          "INTERNAL",
+          "ABORTED",
+          "UNKNOWN"
+        ]
+      }
+    }
+  ]
+}
